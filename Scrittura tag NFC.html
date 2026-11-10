@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scrittura tag NFC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E9ECEE; --surface:#FFFFFF; --ink:#1C252D; --muted:#55626D; --line:#C9D0D6;
+  --accent:#F2C300; --accent-ink:#1C252D; --ok:#1F7A49; --warn:#8F5A00; --err:#B3261E;
+  --field:#F5F7F8;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#151B21; --surface:#1F272F; --ink:#E8ECEF; --muted:#9AA6B0; --line:#34404B;
+    --accent:#F2C300; --accent-ink:#1C252D; --ok:#4CC27F; --warn:#E5A93A; --err:#F07167;
+    --field:#182027; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#151B21; --surface:#1F272F; --ink:#E8ECEF; --muted:#9AA6B0; --line:#34404B;
+  --accent:#F2C300; --accent-ink:#1C252D; --ok:#4CC27F; --warn:#E5A93A; --err:#F07167;
+  --field:#182027; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:1.0625rem;line-height:1.45}
+main{max-width:36rem;margin:0 auto;padding:1.25rem 1rem 3rem}
+h1{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:2rem;line-height:1.1;margin:.25rem 0 .35rem}
+h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:600;font-size:1.35rem;margin:0 0 .6rem}
+.lead{color:var(--muted);margin:0 0 1.25rem}
+section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1rem;margin-bottom:1rem}
+label{display:block;font-weight:500;margin-bottom:.5rem}
+input[type=file]{display:block;margin-top:.35rem;max-width:100%;color:var(--muted)}
+textarea{width:100%;min-height:6.5rem;border:1px solid var(--line);border-radius:6px;background:var(--field);color:var(--ink);
+  font:inherit;font-size:.95rem;padding:.6rem;resize:vertical}
+.small{color:var(--muted);font-size:.95rem;margin:.6rem 0 .35rem}
+button{font:inherit;font-weight:600;border-radius:8px;border:1px solid var(--line);background:var(--field);color:var(--ink);
+  padding:.75rem 1rem;min-height:3rem;cursor:pointer;flex:1}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.row{display:flex;gap:.6rem;margin-top:.75rem;flex-wrap:wrap}
+/* pannello attivo con bordo a nastro di sicurezza */
+.panel{position:relative;padding-top:1.6rem;overflow:hidden}
+.panel::before{content:"";position:absolute;inset:0 0 auto;height:10px;
+  background:repeating-linear-gradient(-45deg,var(--accent) 0 12px,#1C252D 12px 24px)}
+.count{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:600;font-size:1.15rem;color:var(--muted)}
+.count strong{color:var(--ink);font-size:1.6rem}
+.big{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:clamp(1.6rem,7vw,2.4rem);
+  line-height:1.15;margin:.35rem 0 .75rem;overflow-wrap:anywhere}
+.status{margin:0;padding:.65rem .8rem;border-radius:6px;background:var(--field);border-left:4px solid var(--line);min-height:2.9rem}
+.status.ok{border-left-color:var(--ok);color:var(--ok)}
+.status.warn{border-left-color:var(--warn);color:var(--warn)}
+.status.error{border-left-color:var(--err);color:var(--err)}
+.status.busy{border-left-color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){
+  .flash{animation:flash .6s ease-out}
+  @keyframes flash{from{background:color-mix(in srgb,var(--ok) 25%,var(--field))}to{background:var(--field)}}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Scrittura tag NFC</h1>
+  <p class="lead">Carica la lista, poi appoggia i tag uno alla volta sul retro del telefono. Ogni tag riceve la voce successiva.</p>
+
+  <section aria-labelledby="t-lista">
+    <h2 id="t-lista">Lista</h2>
+    <label for="file">File CSV o di testo
+      <input type="file" id="file">
+    </label>
+    <p class="small">Oppure incolla qui una voce per riga:</p>
+    <textarea id="incolla" placeholder="https://esempio.it/macchina/101&#10;https://esempio.it/macchina/102&#10;Forno 3"></textarea>
+    <div class="row"><button id="carica">Carica lista</button><button id="sostituisci" hidden>Sostituisci lista</button></div>
+    <p class="small" id="infoLista">Se il CSV ha una colonna chiamata contenuto viene usata quella, altrimenti la prima colonna.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="t-tag" aria-live="polite">
+    <h2 id="t-tag" class="count">Tag <strong id="num">–</strong> di <span id="tot">–</span></h2>
+    <div class="big" id="corrente">Nessuna lista caricata</div>
+    <p class="status" id="stato">Carica una lista per cominciare.</p>
+    <div class="row">
+      <button class="primary" id="avvia" disabled>Inizia a scrivere</button>
+      <button id="pausa" disabled>Pausa</button>
+    </div>
+    <div class="row">
+      <button id="indietro" disabled>Riscrivi il precedente</button>
+      <button id="salta" disabled>Salta questa voce</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-reg">
+    <h2 id="t-reg">Registro</h2>
+    <p class="small" id="infoReg">Nessun tag scritto.</p>
+    <textarea id="csv" readonly aria-label="Registro in formato CSV"></textarea>
+    <div class="row">
+      <button id="copia">Copia registro</button>
+      <button id="azzera">Ricomincia da capo</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  const KEY = 'scrittura-nfc-v1';
+  let state = { items: [], index: 0, log: [] };
+  let reader = null, controller = null, running = false, busy = false;
+  const $ = id => document.getElementById(id);
+
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+  function load(){
+    try{
+      const s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (s && Array.isArray(s.items) && Array.isArray(s.log)) state = s;
+    }catch(e){}
+  }
+
+  function setStatus(kind, text){
+    const el = $('stato');
+    el.className = 'status' + (kind ? ' ' + kind : '');
+    el.textContent = text;
+    if (kind === 'ok'){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  }
+
+  // --- lettura CSV ---
+  function parseCSV(text){
+    const first = text.split(/\r?\n/)[0] || '';
+    const count = ch => first.split(ch).length;
+    let sep = ',';
+    if (count(';') > count(sep)) sep = ';';
+    if (count('\t') > count(sep)) sep = '\t';
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++){
+      const c = text[i];
+      if (q){
+        if (c === '"'){ if (text[i+1] === '"'){ cell += '"'; i++; } else q = false; }
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === sep){ row.push(cell); cell = ''; }
+      else if (c === '\n'){ row.push(cell); rows.push(row); row = []; cell = ''; }
+      else if (c !== '\r') cell += c;
+    }
+    if (cell !== '' || row.length){ row.push(cell); rows.push(row); }
+    return rows;
+  }
+
+  function itemsFromCSV(text){
+    text = text.replace(/^\uFEFF/, '');
+    const rows = parseCSV(text).filter(r => r.some(c => c.trim() !== ''));
+    if (!rows.length) return [];
+    const header = rows[0].map(h => h.trim().toLowerCase());
+    let col = header.indexOf('contenuto'), start = 1;
+    if (col === -1){ col = 0; start = 0; }
+    return rows.slice(start).map(r => (r[col] || '').trim()).filter(Boolean);
+  }
+
+  let pending = null;
+  function loadItems(items, force){
+    if (!items.length){ setStatus('error', 'Nel file non ho trovato voci. Controlla che non sia vuoto, oppure incolla la lista nel riquadro.'); return; }
+    if (state.log.length && !force){
+      pending = items;
+      $('sostituisci').hidden = false;
+      setStatus('warn', 'C’è già un registro con ' + state.log.length + ' tag scritti. Premi Sostituisci lista per cancellarlo e caricare la nuova.');
+      return;
+    }
+    pending = null; $('sostituisci').hidden = true;
+    pause();
+    state = { items, index: 0, log: [] };
+    save(); render();
+    setStatus('', 'Lista pronta. Premi Inizia a scrivere.');
+  }
+
+  $('file').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      let text;
+      try{ text = new TextDecoder('utf-8', { fatal: true }).decode(r.result); }
+      catch(err){ text = new TextDecoder('windows-1252').decode(r.result); }
+      try{ loadItems(itemsFromCSV(text)); }
+      catch(err){ setStatus('error', 'Non riesco a leggere il file: ' + (err.message || err.name)); }
+      e.target.value = '';
+    };
+    r.onerror = () => setStatus('error', 'Impossibile aprire il file. Prova a incollare la lista nel riquadro.');
+    r.readAsArrayBuffer(f);
+  });
+  $('sostituisci').addEventListener('click', () => { if (pending) loadItems(pending, true); });
+  $('carica').addEventListener('click', () => {
+    const t = $('incolla').value;
+    if (!t.trim()){ setStatus('warn', 'Scegli un file o incolla almeno una voce.'); return; }
+    loadItems(t.split(/\r?\n/).map(s => s.trim()).filter(Boolean));
+  });
+
+  // --- NFC ---
+  function makeMessage(c){
+    if (/^(https?:|tel:|mailto:)/i.test(c)) return { records: [{ recordType: 'url', data: c }] };
+    return { records: [{ recordType: 'text', data: c, lang: 'it' }] };
+  }
+
+  async function start(){
+    if (!('NDEFReader' in window)){
+      setStatus('error', 'Questo browser non può usare l’NFC. Apri la pagina con Chrome su Android e attiva l’NFC nelle impostazioni del telefono.');
+      return;
+    }
+    try{
+      reader = new NDEFReader();
+      controller = new AbortController();
+      await reader.scan({ signal: controller.signal });
+    }catch(err){
+      if (err.name === 'NotAllowedError' || err.name === 'SecurityError')
+        setStatus('error', 'L’NFC è bloccato in questa finestra o il permesso è stato negato. Apri la pagina direttamente in Chrome e consenti l’accesso all’NFC.');
+      else if (err.name === 'NotReadableError' || err.name === 'NotSupportedError')
+        setStatus('error', 'NFC non disponibile. Controlla che sia attivo nelle impostazioni del telefono.');
+      else setStatus('error', 'Impossibile avviare l’NFC: ' + err.message);
+      return;
+    }
+    running = true;
+    reader.onreadingerror = () => { if (running) setStatus('warn', 'Tag non letto. Riappoggialo tenendolo fermo.'); };
+    reader.onreading = onTag;
+    render(); prompt();
+  }
+
+  function prompt(){
+    if (state.index >= state.items.length) return done();
+    setStatus('busy', 'Appoggia il tag sul retro del telefono e tienilo fermo.');
+  }
+
+  async function onTag(ev){
+    if (!running || busy || state.index >= state.items.length) return;
+    const uid = (ev.serialNumber || '').toUpperCase();
+    if (uid && state.log.some(r => r.uid === uid)){
+      setStatus('warn', 'Questo tag (' + uid + ') è già stato scritto. Appoggiane uno nuovo.');
+      return;
+    }
+    busy = true;
+    const contenuto = state.items[state.index];
+    setStatus('busy', 'Scrittura in corso, non muovere il tag…');
+    try{
+      await reader.write(makeMessage(contenuto));
+      state.log.push({ n: state.index + 1, uid: uid || '(sconosciuto)', contenuto });
+      state.index++;
+      save();
+      try{ navigator.vibrate && navigator.vibrate(150); }catch(e){}
+      render();
+      if (state.index >= state.items.length) done();
+      else setStatus('ok', 'Tag ' + state.index + ' scritto. Toglilo e appoggia il prossimo.');
+    }catch(err){
+      setStatus('error', 'Scrittura non riuscita (' + (err.message || err.name) + '). Riappoggia il tag.');
+    }finally{ busy = false; }
+  }
+
+  function pause(){
+    if (controller){ try{ controller.abort(); }catch(e){} }
+    controller = null; reader = null; running = false; busy = false;
+    render();
+  }
+
+  function done(){
+    pause();
+    setStatus('ok', 'Lista completata: ' + state.log.length + ' tag scritti.');
+  }
+
+  $('avvia').addEventListener('click', start);
+  $('pausa').addEventListener('click', () => { pause(); setStatus('', 'In pausa. Premi Inizia a scrivere per riprendere.'); });
+  $('salta').addEventListener('click', () => {
+    if (state.index < state.items.length){ state.index++; save(); render(); running ? prompt() : setStatus('', 'Voce saltata.'); }
+  });
+  $('indietro').addEventListener('click', () => {
+    if (state.index > 0){
+      state.index--;
+      state.log = state.log.filter(r => r.n !== state.index + 1);
+      save(); render();
+      running ? setStatus('busy', 'Riappoggia il tag da riscrivere.') : setStatus('', 'Tornato alla voce ' + (state.index + 1) + '.');
+    }
+  });
+
+  // --- registro ---
+  function csvCell(s){ s = String(s); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function registroCSV(){
+    return ['n;uid;contenuto'].concat(state.log.map(r => [r.n, r.uid, r.contenuto].map(csvCell).join(';'))).join('\n');
+  }
+  $('copia').addEventListener('click', async () => {
+    const t = registroCSV();
+    try{ await navigator.clipboard.writeText(t); $('infoReg').textContent = 'Registro copiato negli appunti.'; }
+    catch(e){ const a = $('csv'); a.focus(); a.select(); $('infoReg').textContent = 'Testo selezionato: tieni premuto e scegli Copia.'; }
+  });
+  let azzeraTimer = null;
+  $('azzera').addEventListener('click', () => {
+    const b = $('azzera');
+    if (!azzeraTimer){
+      b.textContent = 'Tocca ancora per cancellare tutto';
+      azzeraTimer = setTimeout(() => { azzeraTimer = null; b.textContent = 'Ricomincia da capo'; }, 4000);
+      return;
+    }
+    clearTimeout(azzeraTimer); azzeraTimer = null; b.textContent = 'Ricomincia da capo';
+    pending = null; $('sostituisci').hidden = true;
+    pause(); state = { items: [], index: 0, log: [] }; save(); render();
+    setStatus('', 'Carica una lista per cominciare.');
+  });
+
+  function render(){
+    const tot = state.items.length, has = tot > 0, fine = has && state.index >= tot;
+    $('tot').textContent = has ? tot : '–';
+    $('num').textContent = has ? Math.min(state.index + 1, tot) : '–';
+    $('corrente').textContent = !has ? 'Nessuna lista caricata' : fine ? 'Lista completata' : state.items[state.index];
+    $('avvia').disabled = !has || fine || running;
+    $('avvia').textContent = state.index > 0 && !fine ? 'Riprendi' : 'Inizia a scrivere';
+    $('pausa').disabled = !running;
+    $('salta').disabled = !has || fine;
+    $('indietro').disabled = state.index === 0;
+    $('infoLista').textContent = has
+      ? 'Lista caricata: ' + tot + (tot === 1 ? ' voce.' : ' voci.') + ' Prime voci: ' + state.items.slice(0, 3).join(' | ')
+      : 'Se il CSV ha una colonna chiamata contenuto viene usata quella, altrimenti la prima colonna.';
+    $('infoReg').textContent = state.log.length ? state.log.length + ' tag scritti. Il registro abbina l’UID di ogni tag al suo contenuto.' : 'Nessun tag scritto.';
+    $('csv').value = state.log.length ? registroCSV() : '';
+  }
+
+  load(); render();
+  if (state.items.length && state.index < state.items.length && state.index > 0)
+    setStatus('', 'Lavoro ripreso dalla voce ' + (state.index + 1) + '. Premi Riprendi.');
+})();
+</script>
+</body>
+</html>
